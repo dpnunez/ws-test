@@ -1,1 +1,15 @@
-Websocket example
+<html>
+    <head> </head>
+    <body>
+        <h1>My First Heading</h1>
+        <p>My first paragraph.</p>
+        <script>
+            const proto = window.location.protocol === "https:" ? "wss" : "ws";
+            const ws = new WebSocket(`${proto}://${window.location.host}`);
+
+            ws.onmessage = (event) => {
+                console.log(event.data);
+            };
+        </script>
+    </body>
+</html>
