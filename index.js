@@ -1,98 +1,148 @@
 const express = require("express");
+const http = require("http");
+const WebSocket = require("ws");
 
-const server = require("http").createServer();
-const WebSocketServer = require("ws").Server;
-const sqlite = require("sqlite3");
-
-const app = express();
 const PORT = 3002;
+const app = express();
+const server = http.createServer().listen(PORT, () => {
+  console.log(`Listening on port ${PORT}`);
+});
 
-app.get("/", function (req, res) {
+// Rest Config
+server.on("request", app);
+
+app.get("/", (req, res) => {
   res.sendFile("index.html", { root: __dirname });
 });
 
-server.on("request", app);
-server.listen(PORT, function () {
-  console.log("Listening on " + PORT);
-});
+// Websocket config
+const wss = new WebSocket.Server({ server: server });
 
-process.on("SIGINT", shutdown);
-
-function shutdown() {
+wss.broadcast = (data) => {
   wss.clients.forEach((client) => {
-    client.close();
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
   });
+};
 
-  server.close();
-  shutdownDB();
-
-  process.exit();
+function sendCurrentStats() {
+  wss.broadcast(`Current visitors: ${wss.clients.size}`);
 }
 
-/** Websocket **/
-const wss = new WebSocketServer({ server: server });
-
-wss.on("connection", function connection(ws) {
+wss.on("connection", (ws) => {
   const numClients = wss.clients.size;
-
   console.log("clients connected: ", numClients);
-
-  wss.broadcast(`Current visitors: ${numClients}`);
-
-  db.run(`
-    INSERT INTO visitors (count, time)
-    VALUES (${numClients}, datetime('now'))
-  `);
-
-  getCounts();
 
   if (ws.readyState === ws.OPEN) {
     ws.send("welcome!");
   }
 
-  ws.on("close", function close() {
-    wss.broadcast(`Current visitors: ${wss.clients.size}`);
+  ws.on("close", () => {
     console.log("A client has disconnected");
+    sendCurrentStats();
   });
 
-  ws.on("error", function error() {
-    //
+  ws.on("error", (_, error) => {
+    console.log("error", error);
   });
+
+  sendCurrentStats();
 });
 
-/**
- * Broadcast data to all connected clients
- * @param  {Object} data
- * @void
- */
-wss.broadcast = function broadcast(data) {
-  console.log("Broadcasting: ", data);
-  wss.clients.forEach(function each(client) {
-    client.send(data);
-  });
-};
-/** End Websocket **/
+// const server = require("http").createServer();
+// const WebSocketServer = require("ws").Server;
+// const sqlite = require("sqlite3");
 
-/** SQLite **/
-const db = new sqlite.Database(":memory:");
+// const app = express();
+// const PORT = 3002;
 
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE visitors (
-      count INTEGER,
-      time TEXT
-    )
-  `);
-});
+// app.get("/", function (req, res) {
+//   res.sendFile("index.html", { root: __dirname });
+// });
 
-function getCounts() {
-  db.each("SELECT * FROM visitors", (err, row) => {
-    console.log(row);
-  });
-}
+// server.on("request", app);
+// server.listen(PORT, function () {
+//   console.log("Listening on " + PORT);
+// });
 
-function shutdownDB() {
-  console.log("shutting down db");
-  getCounts();
-  db.close();
-}
+// process.on("SIGINT", shutdown);
+
+// function shutdown() {
+//   wss.clients.forEach((client) => {
+//     client.close();
+//   });
+
+//   server.close();
+//   shutdownDB();
+
+//   process.exit();
+// }
+
+// /** Websocket **/
+// const wss = new WebSocketServer({ server: server });
+
+// wss.on("connection", function connection(ws) {
+//   const numClients = wss.clients.size;
+
+//   console.log("clients connected: ", numClients);
+
+//   wss.broadcast(`Current visitors: ${numClients}`);
+
+//   db.run(`
+//     INSERT INTO visitors (count, time)
+//     VALUES (${numClients}, datetime('now'))
+//   `);
+
+//   getCounts();
+
+//   if (ws.readyState === ws.OPEN) {
+//     ws.send("welcome!");
+//   }
+
+//   ws.on("close", function close() {
+//     wss.broadcast(`Current visitors: ${wss.clients.size}`);
+//     console.log("A client has disconnected");
+//   });
+
+//   ws.on("error", function error() {
+//     //
+//   });
+// });
+
+// /**
+//  * Broadcast data to all connected clients
+//  * @param  {Object} data
+//  * @void
+//  */
+// wss.broadcast = function broadcast(data) {
+//   console.log("Broadcasting: ", data);
+//   wss.clients.forEach(function each(client) {
+//     client.send(data);
+//   });
+// };
+// /** End Websocket **/
+
+// /** SQLite **/
+// const db = new sqlite.Database(":memory:");
+
+// db.serialize(() => {
+//   db.run(`
+//     CREATE TABLE visitors (
+//       count INTEGER,
+//       time TEXT
+//     )
+//   `);
+// });
+
+// function getCounts() {
+//   db.each("SELECT * FROM visitors", (err, row) => {
+//     console.log(row);
+//   });
+// }
+
+// function shutdownDB() {
+//   console.log("shutting down db");
+//   getCounts();
+//   db.close();
+// }
